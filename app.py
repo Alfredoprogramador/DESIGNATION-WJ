@@ -44,8 +44,12 @@ def load_data():
                         manager.add_person(person)
                     except ValueError:
                         pass  # Person already exists
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"ERROR: Failed to load people data - file may be corrupted: {e}")
+            print("Starting with empty people list")
         except Exception as e:
-            print(f"Error loading people: {e}")
+            print(f"ERROR: Unexpected error loading people: {e}")
+            print("Starting with empty people list")
     
     # Load schedules
     if os.path.exists(SCHEDULES_FILE):
@@ -56,23 +60,31 @@ def load_data():
                 for schedule_dict in schedules_data:
                     schedule = MonthlySchedule.from_dict(schedule_dict)
                     manager.schedules[(schedule.year, schedule.month)] = schedule
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"ERROR: Failed to load schedules data - file may be corrupted: {e}")
+            print("Starting with empty schedules")
         except Exception as e:
-            print(f"Error loading schedules: {e}")
+            print(f"ERROR: Unexpected error loading schedules: {e}")
+            print("Starting with empty schedules")
 
 
 def save_data():
     """Save people and schedules to files"""
-    ensure_data_dir()
-    
-    # Save people
-    people_data = [p.to_dict() for p in manager.people]
-    with open(PEOPLE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(people_data, f, indent=2, ensure_ascii=False)
-    
-    # Save schedules
-    schedules_data = [s.to_dict() for s in manager.schedules.values()]
-    with open(SCHEDULES_FILE, 'w', encoding='utf-8') as f:
-        json.dump(schedules_data, f, indent=2, ensure_ascii=False)
+    try:
+        ensure_data_dir()
+        
+        # Save people
+        people_data = [p.to_dict() for p in manager.people]
+        with open(PEOPLE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(people_data, f, indent=2, ensure_ascii=False)
+        
+        # Save schedules
+        schedules_data = [s.to_dict() for s in manager.schedules.values()]
+        with open(SCHEDULES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(schedules_data, f, indent=2, ensure_ascii=False)
+    except IOError as e:
+        print(f"Error saving data: {e}")
+        raise
 
 
 @app.route('/')
@@ -95,13 +107,20 @@ def add_person():
     if not data or 'name' not in data:
         return jsonify({'error': 'Name is required'}), 400
     
+    # Validate name
+    name = data['name'].strip()
+    if not name or len(name) < 1:
+        return jsonify({'error': 'Name cannot be empty'}), 400
+    if len(name) > 100:
+        return jsonify({'error': 'Name is too long (max 100 characters)'}), 400
+    
     # Generate new ID
     max_id = max([p.id for p in manager.people], default=0)
     new_id = max_id + 1
     
     person = Person(
         id=new_id,
-        name=data['name'],
+        name=name,
         available=data.get('available', True)
     )
     
@@ -171,7 +190,15 @@ def generate_schedule(year, month):
         # Parse dates
         meeting_dates = []
         for date_str in data['dates']:
-            meeting_dates.append(datetime.fromisoformat(date_str).date())
+            meeting_date = datetime.fromisoformat(date_str).date()
+            
+            # Validate that date belongs to the specified month and year
+            if meeting_date.year != year or meeting_date.month != month:
+                return jsonify({
+                    'error': f'Date {date_str} does not belong to {month}/{year}'
+                }), 400
+            
+            meeting_dates.append(meeting_date)
         
         # Generate schedule
         schedule = manager.generate_monthly_schedule(year, month, meeting_dates)
@@ -214,4 +241,7 @@ if __name__ == '__main__':
     load_data()
     
     # Run the Flask app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Note: For production, use a WSGI server like gunicorn
+    import os
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)

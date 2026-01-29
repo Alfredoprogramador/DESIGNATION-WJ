@@ -131,10 +131,6 @@ class DesignationManager:
                         f"on {meeting_date}. Needed {designation_def.required_people}, "
                         f"got {assigned_count}"
                     )
-            
-            # Re-sort people by assignment count for next date
-            # This helps distribute assignments more fairly
-            people_pool.sort(key=lambda p: assignment_counts[p.id])
         
         # Store the schedule
         self.schedules[(year, month)] = schedule

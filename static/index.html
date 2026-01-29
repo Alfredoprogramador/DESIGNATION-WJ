@@ -371,9 +371,9 @@
         </header>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('people')">👥 Pessoas</button>
-            <button class="tab" onclick="switchTab('schedule')">📅 Gerar Escala</button>
-            <button class="tab" onclick="switchTab('view')">👁️ Ver Escalas</button>
+            <button class="tab active" onclick="switchTab('people', event)">👥 Pessoas</button>
+            <button class="tab" onclick="switchTab('schedule', event)">📅 Gerar Escala</button>
+            <button class="tab" onclick="switchTab('view', event)">👁️ Ver Escalas</button>
         </div>
 
         <!-- People Tab -->
@@ -506,7 +506,7 @@
             document.getElementById('view-month').value = now.getMonth() + 1;
         });
 
-        function switchTab(tabName) {
+        function switchTab(tabName, event) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
@@ -545,10 +545,17 @@
                     return;
                 }
 
+                // Helper function to escape HTML to prevent XSS
+                const escapeHtml = (text) => {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                };
+
                 listEl.innerHTML = people.map(person => `
                     <div class="person-card">
                         <div class="person-info">
-                            <div class="person-name">${person.name}</div>
+                            <div class="person-name">${escapeHtml(person.name)}</div>
                             <div class="person-status ${person.available ? 'available' : 'unavailable'}">
                                 ${person.available ? '✓ Disponível' : '✗ Indisponível'}
                             </div>
@@ -757,6 +764,13 @@
             const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                               'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+            // Helper function to escape HTML to prevent XSS
+            const escapeHtml = (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+
             container.innerHTML = `
                 <h3 style="margin-bottom: 20px; color: #667eea;">
                     📅 Escala de ${monthNames[schedule.month - 1]} ${schedule.year}
@@ -772,11 +786,11 @@
                     
                     return `
                         <div class="schedule-date">
-                            <div class="schedule-date-header">${formatted}</div>
+                            <div class="schedule-date-header">${escapeHtml(formatted)}</div>
                             ${Object.entries(dateInfo.assignments).map(([designation, people]) => `
                                 <div class="designation-assignment">
-                                    <div class="designation-type">${designation}</div>
-                                    <div class="designation-people">${people.join(', ')}</div>
+                                    <div class="designation-type">${escapeHtml(designation)}</div>
+                                    <div class="designation-people">${people.map(p => escapeHtml(p)).join(', ')}</div>
                                 </div>
                             `).join('')}
                         </div>
